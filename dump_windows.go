@@ -12,28 +12,18 @@ var (
 	modDbghelp  = syscall.NewLazyDLL("Dbghelp.dll")
 )
 var (
-	procGetCurrentProcess   = modkernel32.NewProc("GetCurrentProcess")
 	procGetCurrentProcessID = modkernel32.NewProc("GetCurrentProcessId")
 	procGetCurrentThreadID  = modkernel32.NewProc("GetCurrentThreadId")
 	procMiniDumpWriteDump   = modDbghelp.NewProc("MiniDumpWriteDump")
 )
 
-// getCurrentProcess WinApi HANDLE GetCurrentProcess()
-func getCurrentProcess() syscall.Handle {
-	r0, _, e1 := syscall.Syscall(procGetCurrentProcess.Addr(), 0, 0, 0, 0)
-	if e1 != 0 {
-		return syscall.Handle(0)
-	}
-	return syscall.Handle(r0)
-}
-
 // getCurrentProcessID WinApi DWORD GetCurrentProcessId()
-func getCurrentProcessID() uint32 {
+func getCurrentProcessID() (uint32, error) {
 	r0, _, e1 := syscall.Syscall(procGetCurrentProcessID.Addr(), 0, 0, 0, 0)
 	if e1 != 0 {
-		return 0
+		return 0, e1
 	}
-	return uint32(r0)
+	return uint32(r0), nil
 }
 
 // miniDumpWriteDump WinApi BOOL MiniDumpWriteDump(...)
@@ -48,8 +38,15 @@ func miniDumpWriteDump(process syscall.Handle, pid uint32, fd uintptr, miniDumpT
 // WriteFullDumpFd write memory dump file
 // Task Manager => "Create dump file"
 func WriteFullDumpFd(fd uintptr) bool {
-	ps := getCurrentProcess()
-	pid := getCurrentProcessID()
+	ps, err := syscall.GetCurrentProcess()
+	if err != nil {
+		return false
+	}
+
+	pid, err := getCurrentProcessID()
+	if err != nil {
+		return false
+	}
 	return miniDumpWriteDump(ps, pid, fd, 2)
 }
 
